@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Think & Trade — Candle Price Simulator</title>
+
+  <!-- Tailwind for easy, clean UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { background: linear-gradient(180deg,#f7fff7 0%, #ffffff 100%); }
+    canvas { background: #0b1220; border-radius: 8px; display:block; }
+    .kbd { background:#111827;color:#fff;padding:4px 8px;border-radius:6px;font-weight:600;font-size:13px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-6">
+
+  <!-- Header -->
+  <header class="w-full max-w-6xl flex items-center justify-between mb-6">
+    <div class="flex items-center gap-4">
+      <img src="WhatsApp Image 2025-11-20 at 02.49.45_c2297475.jpg" alt="logo" class="w-14 h-14 rounded-full object-cover shadow" />
+      <div>
+        <h1 class="text-2xl font-bold">Think & Trade — Candle Price Simulator</h1>
+        <p class="text-sm text-gray-600">Practice trading decisions with simulated candle data — risk-free.</p>
+      </div>
+    </div>
+    <div class="text-right text-sm text-gray-700">
+      <div><span class="font-semibold">Balance:</span> <span id="balanceDisplay">$1000.00</span></div>
+      <div><span class="font-semibold">Realized P/L:</span> <span id="realizedDisplay">$0.00</span></div>
+      <div><span class="font-semibold">Speed:</span> <span id="speedLabel">1s</span></div>
+    </div>
+  </header>
+
+  <!-- Main area -->
+  <main class="w-full max-w-6xl">
+    <div class="grid md:grid-cols-4 gap-6">
+
+      <!-- Chart area (spans columns) -->
+      <section class="md:col-span-3 bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm text-gray-600">Simulated Market</div>
+          <div class="text-sm text-gray-600">Current Price: <span id="currentPrice">--</span></div>
+        </div>
+
+        <div class="w-full">
+          <canvas id="chart" width="1000" height="360"></canvas>
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button id="btnPause" class="px-4 py-2 rounded bg-yellow-400 text-black font-semibold hover:opacity-90">Pause</button>
+          <button id="btnReset" class="px-4 py-2 rounded bg-gray-200 text-gray-800">Reset</button>
+          <label class="ml-4 text-sm text-gray-600">Candle interval:</label>
+          <select id="speed" class="ml-2 px-2 py-1 border rounded">
+            <option value="1000">1s</option>
+            <option value="700">0.7s</option>
+            <option value="400">0.4s</option>
+            <option value="200">0.2s</option>
+            <option value="50">0.05s (fast)</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <aside class="bg-white p-4 rounded-lg shadow flex flex-col gap-4">
+        <div>
+          <label class="block text-sm text-gray-600">Position Size ($):</label>
+          <input id="size" type="number" value="100" min="1" step="1" class="w-full mt-1 px-3 py-2 border rounded" />
+        </div>
+
+        <div>
+          <label class="block text-sm text-gray-600">Leverage (x):</label>
+          <input id="leverage" type="number" value="1" min="1" step="1" class="w-full mt-1 px-3 py-2 border rounded" />
+        </div>
+
+        <div class="flex gap-2">
+          <button id="btnBuy" class="flex-1 px-4 py-2 rounded bg-green-600 text-white font-bold hover:opacity-90">Buy / Long</button>
+          <button id="btnSell" class="flex-1 px-4 py-2 rounded bg-red-600 text-white font-bold hover:opacity-90">Sell / Short</button>
+        </div>
+
+        <button id="btnClose" class="w-full px-4 py-2 rounded bg-indigo-600 text-white font-bold">Close Position</button>
+
+        <div class="pt-2 border-t">
+          <div class="text-sm text-gray-600 mb-2">Position</div>
+          <div><strong>Type:</strong> <span id="posType">None</span></div>
+          <div><strong>Size ($):</strong> <span id="posSize">0</span></div>
+          <div><strong>Entry Price:</strong> <span id="posEntry">-</span></div>
+          <div><strong>Unrealized P/L:</strong> <span id="unreal">0</span></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="w-full max-w-6xl mt-6 text-sm text-gray-600">
+    Tips: Use the speed selector if you want to see the market faster. Start small and practice managing risk.
+  </footer>
+
+  <!-- ===== Game Script ===== -->
+  <script>
+    /* ====== Simple Candle Simulator + Trading Logic ======
+      - Random walk generates candles (open, high, low, close)
+      - Chart draws last N candles on canvas
+      - Basic position (long/short) tracking with P/L and balance updates
+    */
+
+    // UI elements
+    const canvas = document.getElementById('chart');
+    const ctx = canvas.getContext('2d');
+    const currentPriceEl = document.getElementById('currentPrice');
+    const balanceDisplay = document.getElementById('balanceDisplay');
+    const realizedDisplay = document.getElementById('realizedDisplay');
+    const posTypeEl = document.getElementById('posType');
+    const posSizeEl = document.getElementById('posSize');
+    const posEntryEl = document.getElementById('posEntry');
+    const unrealEl = document.getElementById('unreal');
+    const btnBuy = document.getElementById('btnBuy');
+    const btnSell = document.getElementById('btnSell');
+    const btnClose = document.getElementById('btnClose');
+    const btnPause = document.getElementById('btnPause');
+    const btnReset = document.getElementById('btnReset');
+    const sizeInput = document.getElementById('size');
+    const levInput = document.getElementById('leverage');
+    const speedSelect = document.getElementById('speed');
+    const speedLabel = document.getElementById('speedLabel');
+
+    // Game state
+    let balance = 1000;
+    let realized = 0;
+    let candles = []; // array of {o,h,l,c}
+    const maxCandles = 80;
+    let lastClose = 100; // starting price
+    let running = true;
+    let timer = null;
+
+    // Position: { type: 'long'|'short', sizeUSD, leverage, entryPrice }
+    let position = null;
+
+    // Chart drawing config
+    function drawChart() {
+      // clear
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      // background subtle grid
+      ctx.fillStyle = '#071018';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      // draw candles
+      const w = canvas.width;
+      const h = canvas.height;
+      const candleW = Math.floor(w / maxCandles * 0.9);
+      const gap = Math.floor((w - candleW*maxCandles) / (maxCandles-1)) || 1;
+      // find price range
+      const prices = candles.flatMap(c => [c.h, c.l]);
+      const maxP = Math.max(...prices, lastClose);
+      const minP = Math.min(...prices, lastClose);
+      const range = Math.max(0.001, maxP - minP);
+      // draw axis line at lastClose
+      const scaleY = p => {
+        return h - ((p - minP) / range) * (h - 20) - 10;
+      };
+
+      // draw candles from right to left (recent at right)
+      let x = Math.max(0, w - (candleW + gap) * candles.length);
+      for (let i=0;i<candles.length;i++){
+        const c = candles[i];
+        const cx = x + i * (candleW + gap);
+        const yOpen = scaleY(c.o);
+        const yClose = scaleY(c.c);
+        const yHigh = scaleY(c.h);
+        const yLow = scaleY(c.l);
+        // wick
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + candleW/2, yHigh);
+        ctx.lineTo(cx + candleW/2, yLow);
+        ctx.stroke();
+        // body
+        const isBull = c.c >= c.o;
+        ctx.fillStyle = isBull ? '#10b981' : '#ef4444';
+        const bodyTop = Math.min(yOpen, yClose);
+        const bodyHeight = Math.max(1, Math.abs(yClose-yOpen));
+        ctx.fillRect(cx, bodyTop, candleW, bodyHeight);
+      }
+
+      // draw price labels
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.font = '12px Inter, Arial';
+      ctx.fillText('High: ' + (Math.max(...prices).toFixed(2)), 10, 14);
+      ctx.fillText('Low: ' + (Math.min(...prices).toFixed(2)), 10, 30);
+      ctx.fillText('Candles: ' + candles.length, 10, 46);
+
+      // draw current price on right
+      ctx.fillStyle = '#fff';
+      ctx.font = '14px Inter, Arial';
+      ctx.fillText('Price: ' + lastClose.toFixed(2), w - 130, 20);
+
+      // draw position line
+      if (position) {
+        const py = scaleY(position.entryPrice);
+        ctx.strokeStyle = position.type === 'long' ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(w, py);
+        ctx.stroke();
+      }
+    }
+
+    // Candle generator (random walk)
+    function nextCandle() {
+      // random small movement with occasional spikes
+      const vol = Math.max(0.1, Math.abs((Math.random()-0.5)*2)) * (Math.random() < 0.02 ? 6 : 1);
+      const direction = (Math.random() - 0.5) * vol;
+      const open = lastClose;
+      let close = Math.max(0.1, open + direction);
+      // build high/low around open/close
+      const high = Math.max(open, close) + Math.random() * (vol/2);
+      const low = Math.min(open, close) - Math.random() * (vol/2);
+      lastClose = close;
+      const candle = { o: open, h: high, l: low, c: close };
+      candles.push(candle);
+      if (candles.length > maxCandles) candles.shift();
+      // update UI & chart
+      currentPriceEl.innerText = lastClose.toFixed(2);
+      drawChart();
+      updateUnrealized();
+    }
+
+    // Start simulation loop
+    function startLoop() {
+      if (timer) clearInterval(timer);
+      const interval = parseInt(speedSelect.value, 10) || 1000;
+      speedLabel.textContent = (interval>=1000? (interval/1000)+'s' : (interval)+'ms');
+      timer = setInterval(() => {
+        if (running) nextCandle();
+      }, interval);
+    }
+
+    // Trading functions
+    function openPosition(type) {
+      if (position) {
+        alert('Close existing position first.');
+        return;
+      }
+      const sizeUSD = Math.max(1, Number(sizeInput.value) || 0);
+      const leverage = Math.max(1, Number(levInput.value) || 1);
+      if (sizeUSD > balance * 10) { // simple guard
+        if (!confirm('Position size large relative to balance. Continue?')) return;
+      }
+      position = {
+        type: type,
+        sizeUSD: sizeUSD,
+        leverage: leverage,
+        entryPrice: lastClose
+      };
+      posTypeEl.innerText = position.type;
+      posSizeEl.innerText = '$' + position.sizeUSD.toFixed(2);
+      posEntryEl.innerText = position.entryPrice.toFixed(2);
+      updateUnrealized();
+    }
+
+    function closePosition() {
+      if (!position) { alert('No open position to close.'); return; }
+      // calculate P/L: percent change * size * leverage (for simplicity)
+      const change = (lastClose - position.entryPrice) / position.entryPrice;
+      const pnlPercent = position.type === 'long' ? change : -change;
+      const pnl = pnlPercent * position.sizeUSD * position.leverage;
+      realized += pnl;
+      balance += pnl;
+      // reset
+      position = null;
+      posTypeEl.innerText = 'None';
+      posSizeEl.innerText = '0';
+      posEntryEl.innerText = '-';
+      unrealEl.innerText = '0';
+      balanceDisplay.innerText = '$' + balance.toFixed(2);
+      realizedDisplay.innerText = '$' + realized.toFixed(2);
+    }
+
+    function updateUnrealized() {
+      if (!position) {
+        unrealEl.innerText = '0';
+        return;
+      }
+      const change = (lastClose - position.entryPrice) / position.entryPrice;
+      const pnlPercent = position.type === 'long' ? change : -change;
+      const pnl = pnlPercent * position.sizeUSD * position.leverage;
+      unrealEl.innerText = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+    }
+
+    // UI events
+    btnBuy.addEventListener('click', () => openPosition('long'));
+    btnSell.addEventListener('click', () => openPosition('short'));
+    btnClose.addEventListener('click', () => closePosition());
+    btnPause.addEventListener('click', () => {
+      running = !running;
+      btnPause.innerText = running ? 'Pause' : 'Resume';
+    });
+    btnReset.addEventListener('click', () => {
+      if (!confirm('Reset simulation? Balance and P/L will reset.')) return;
+      balance = 1000;
+      realized = 0;
+      candles = [];
+      lastClose = 100;
+      position = null;
+      balanceDisplay.innerText = '$' + balance.toFixed(2);
+      realizedDisplay.innerText = '$' + realized.toFixed(2);
+      posTypeEl.innerText = 'None';
+      posSizeEl.innerText = '0';
+      posEntryEl.innerText = '-';
+      unrealEl.innerText = '0';
+      drawChart();
+    });
+
+    speedSelect.addEventListener('change', startLoop);
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'b' || e.key === 'B') openPosition('long');
+      if (e.key === 's' || e.key === 'S') openPosition('short');
+      if (e.key === 'c' || e.key === 'C') closePosition();
+      if (e.key === ' ') { running = !running; btnPause.innerText = running ? 'Pause' : 'Resume'; }
+    });
+
+    // initial setup
+    balanceDisplay.innerText = '$' + balance.toFixed(2);
+    realizedDisplay.innerText = '$' + realized.toFixed(2);
+    currentPriceEl.innerText = lastClose.toFixed(2);
+
+    // seed some initial candles for visualization
+    (function seedCandles(n=30) {
+      for (let i=0;i<n;i++){
+        const open = lastClose;
+        const dir = (Math.random() - 0.5) * (Math.random() < 0.02 ? 6 : 1);
+        const close = Math.max(0.1, open + dir);
+        const high = Math.max(open, close) + Math.random() * 1.2;
+        const low = Math.min(open, close) - Math.random() * 1.2;
+        candles.push({o:open,h:high,l:low,c:close});
+        lastClose = close;
+      }
+    })();
+
+    drawChart();
+    startLoop();
+
+  </script>
+</body>
+</html>
