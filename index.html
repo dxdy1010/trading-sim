@@ -18,18 +18,30 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    body { background: linear-gradient(180deg,#f7fff7 0%, #ffffff 100%); }
-    canvas { background: #0b1220; border-radius: 8px; width: 100%!important; height: auto!important; }
+    /* Prevent horizontal overflow on small screens */
+    html, body { overflow-x: hidden; }
+    body { background: linear-gradient(180deg,#f7fff7 0%, #ffffff 100%); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    /* container sizing */
+    .site-max { max-width: 920px; width: 100%; }
+    /* canvas base: will be sized via JS (high-DPR aware) */
+    canvas { display:block; border-radius:8px; background:#07121b; width:100%; height:auto; touch-action: manipulation; }
+    /* ensure buttons are finger-friendly */
+    button { touch-action: manipulation; }
+    /* small adjustments for mobile spacing */
+    @media (max-width:640px) {
+      header .text-sm { font-size: 12px; }
+      .site-max { padding-left: 8px; padding-right:8px; }
+    }
   </style>
 </head>
 
 <body class="min-h-screen flex flex-col items-center p-4">
 
   <!-- Header -->
-  <header class="w-full max-w-4xl flex flex-col sm:flex-row items-center sm:justify-between gap-4 mb-4">
+  <header class="w-full site-max flex flex-col sm:flex-row items-center sm:justify-between gap-4 mb-4">
     <div class="flex items-center gap-4">
-      <img src="WhatsApp Image 2025-11-20 at 02.49.45_c2297475.jpg" 
-           alt="logo" 
+      <img src="WhatsApp Image 2025-11-20 at 02.49.45_c2297475.jpg"
+           alt="Think & Trade logo"
            class="w-14 h-14 rounded-full object-cover shadow" />
       <div>
         <h1 class="text-xl sm:text-2xl font-bold">Think & Trade — Candle Price Simulator</h1>
@@ -44,7 +56,7 @@
   </header>
 
   <!-- Main grid -->
-  <main class="w-full max-w-4xl space-y-4">
+  <main class="w-full site-max space-y-4">
 
     <!-- Chart Section -->
     <section class="bg-white p-4 rounded-lg shadow">
@@ -54,7 +66,7 @@
       </div>
 
       <div class="w-full overflow-hidden">
-        <canvas id="chart"></canvas>
+        <canvas id="chart" aria-label="Price chart"></canvas>
       </div>
 
       <div class="mt-4 flex flex-wrap gap-3">
@@ -104,15 +116,24 @@
         <div><strong>Unrealized P/L:</strong> <span id="unreal">0</span></div>
       </div>
     </section>
+
+    <!-- Promo / Poster (link to uploaded poster file) -->
+    <section class="text-center">
+      <a href="/mnt/data/A_promotional_digital_graphic_design_advertisement.png" target="_blank" rel="noopener" class="inline-block px-4 py-2 bg-slate-800 text-white rounded shadow">
+        View Promotional Poster
+      </a>
+    </section>
+
   </main>
 
   <!-- Footer -->
-  <footer class="mt-4 text-sm text-gray-600 max-w-4xl text-center">
+  <footer class="mt-4 text-sm text-gray-600 site-max text-center">
     Mobile-optimized trading simulator — practice anywhere.
   </footer>
 
   <!-- SCRIPT -->
   <script>
+    // Elements
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
 
@@ -127,162 +148,280 @@
     const levInput = document.getElementById('leverage');
     const speedSelect = document.getElementById('speed');
     const speedLabel = document.getElementById('speedLabel');
+    const btnBuy = document.getElementById('btnBuy');
+    const btnSell = document.getElementById('btnSell');
+    const btnClose = document.getElementById('btnClose');
 
+    // State
     let candles = [];
     let maxCandles = 80;
     let lastClose = 100;
-
     let balance = 1000;
     let realized = 0;
-
     let position = null;
     let running = true;
-    let timer = null;
 
+    // Candle generation timing
+    let candleInterval = 1000;
+    let candleTimer = null;
+
+    // High-DPI canvas setup & resize
     function resizeCanvas() {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = 300; 
+      const parentWidth = canvas.parentElement.clientWidth;
+      const targetHeight = Math.min(360, Math.round(window.innerHeight * 0.45)); // responsive height
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+      // set CSS sizes (for layout)
+      canvas.style.width = parentWidth + 'px';
+      canvas.style.height = targetHeight + 'px';
+
+      // set actual canvas pixel size for crisp rendering
+      canvas.width = Math.round(parentWidth * dpr);
+      canvas.height = Math.round(targetHeight * dpr);
+
+      // reset transform and scale for DPR
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+
       drawChart();
     }
 
-    window.addEventListener("resize", resizeCanvas);
-    setTimeout(resizeCanvas, 100);
-
+    // draw chart using candles array
     function drawChart() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle = "#0b1220";
-      ctx.fillRect(0,0,canvas.width,canvas.height);
+      // draw background
+      const cssWidth = canvas.clientWidth;
+      const cssHeight = canvas.clientHeight;
+      ctx.clearRect(0,0, cssWidth, cssHeight);
+      ctx.fillStyle = "#07121b";
+      ctx.fillRect(0,0, cssWidth, cssHeight);
 
-      if (candles.length === 0) return;
+      if (candles.length === 0) {
+        // show placeholder center
+        ctx.fillStyle = "#9aa8b3";
+        ctx.font = "14px sans-serif";
+        ctx.fillText("Waiting for market...", 12, 28);
+        return;
+      }
 
-      const h = canvas.height;
-      const w = canvas.width;
-      const candleWidth = w / maxCandles;
+      // compute scale
+      const visible = Math.min(maxCandles, candles.length);
+      const w = cssWidth;
+      const h = cssHeight;
+      const candleW = Math.max(2, w / visible * 0.95);
 
-      const prices = candles.flatMap(c => [c.h, c.l]);
-      const maxP = Math.max(...prices);
-      const minP = Math.min(...prices);
-      const range = maxP - minP || 1;
+      const prices = candles.slice(-visible).flatMap(c => [c.h, c.l, c.o, c.c]);
+      const maxP = Math.max(...prices, lastClose);
+      const minP = Math.min(...prices, lastClose);
+      const range = Math.max(0.0001, maxP - minP);
 
-      const scaleY = p => h - ((p - minP) / range) * (h - 10);
+      const scaleY = p => h - 10 - ((p - minP) / range) * (h - 20);
 
-      candles.forEach((c, i) => {
-        const x = i * candleWidth;
+      // draw candles left-to-right
+      const startX = Math.max(0, w - visible * candleW);
+      for (let i = 0; i < visible; i++) {
+        const c = candles[candles.length - visible + i];
+        const x = startX + i * candleW;
         const yOpen = scaleY(c.o);
         const yClose = scaleY(c.c);
         const yHigh = scaleY(c.h);
         const yLow = scaleY(c.l);
 
-        ctx.strokeStyle = "white";
+        // wick
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = Math.max(1, candleW * 0.08);
         ctx.beginPath();
-        ctx.moveTo(x + candleWidth / 2, yHigh);
-        ctx.lineTo(x + candleWidth / 2, yLow);
+        ctx.moveTo(x + candleW/2, yHigh);
+        ctx.lineTo(x + candleW/2, yLow);
         ctx.stroke();
 
+        // body
         const isBull = c.c >= c.o;
         ctx.fillStyle = isBull ? "#10b981" : "#ef4444";
-        ctx.fillRect(x + 1, Math.min(yOpen, yClose), candleWidth - 2, Math.abs(yClose - yOpen));
-      });
+        const bodyTop = Math.min(yOpen, yClose);
+        const bodyHeight = Math.max(1, Math.abs(yClose - yOpen));
+        ctx.fillRect(x + 1, bodyTop, Math.max(1, candleW - 2), bodyHeight);
+      }
 
-      currentPriceEl.textContent = lastClose.toFixed(2);
+      // draw price & stats
+      ctx.fillStyle = "#e6eef3";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("High: " + Math.max(...prices).toFixed(2), 10, 14);
+      ctx.fillText("Low: " + Math.min(...prices).toFixed(2), 10, 30);
+      ctx.fillText("Candles: " + candles.length, 10, 46);
+
+      // draw current price marker right side
+      ctx.fillStyle = "#fff";
+      ctx.font = "13px sans-serif";
+      ctx.fillText("Price: " + lastClose.toFixed(2), w - 130, 20);
+
+      // draw position line
+      if (position) {
+        const py = scaleY(position.entry);
+        ctx.strokeStyle = position.type === 'long' ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(w, py);
+        ctx.stroke();
+      }
     }
 
-    function nextCandle() {
-      const move = (Math.random() - 0.5) * 1.2;
+    // generate one candle (random walk)
+    function generateCandle() {
+      const vol = (Math.random() - 0.5) * 1.4;
       const open = lastClose;
-      const close = Math.max(0.1, open + move);
-      const high = Math.max(open, close) + Math.random() * 0.6;
-      const low = Math.min(open, close) - Math.random() * 0.6;
-
-      candles.push({o:open, h:high, l:low, c:close});
-      if (candles.length > maxCandles) candles.shift();
-
+      const close = Math.max(0.01, open + vol);
+      const high = Math.max(open, close) + Math.random() * 0.8;
+      const low = Math.min(open, close) - Math.random() * 0.8;
+      const candle = { o: open, h: high, l: low, c: close };
+      candles.push(candle);
+      if (candles.length > 1000) candles.shift();
+      if (candles.length > maxCandles) {
+        // we only keep the last maxCandles for drawing; older kept for stats
+        // no side effects
+      }
       lastClose = close;
+      currentPriceEl.textContent = lastClose.toFixed(2);
+      // update visuals & P/L
       drawChart();
       updateUnrealized();
     }
 
-    function startLoop() {
-      if (timer) clearInterval(timer);
-      const interval = Number(speedSelect.value);
-      speedLabel.textContent = interval >= 1000 ? (interval/1000)+"s" : interval+"ms";
-      timer = setInterval(() => { if (running) nextCandle(); }, interval);
+    // Start candle generation loop (uses setInterval for timing)
+    function startCandleLoop() {
+      if (candleTimer) clearInterval(candleTimer);
+      candleInterval = Number(speedSelect.value) || 1000;
+      speedLabel.textContent = candleInterval >= 1000 ? (candleInterval/1000) + "s" : candleInterval + "ms";
+      candleTimer = setInterval(() => {
+        if (running) generateCandle();
+      }, candleInterval);
     }
 
+    // Trading logic
     function openPosition(type) {
-      if (position) return alert("Close your current position first.");
-
-      const size = Number(sizeInput.value);
-      const lev = Number(levInput.value);
-
+      if (position) {
+        alert('Please close your existing position first.');
+        return;
+      }
+      const size = Math.max(1, Number(sizeInput.value) || 1);
+      const lev = Math.max(1, Number(levInput.value) || 1);
       position = { type, size, lev, entry: lastClose };
-
       posTypeEl.textContent = type;
-      posSizeEl.textContent = "$" + size;
+      posSizeEl.textContent = "$" + size.toFixed(2);
       posEntryEl.textContent = position.entry.toFixed(2);
+      updateUnrealized();
+      // GA event
+      gtag('event', 'open_position', { 'method': 'sim', 'position_type': type, 'size': size, 'leverage': lev });
     }
 
     function closePosition() {
-      if (!position) return;
-
+      if (!position) {
+        alert('No open position.');
+        return;
+      }
       const change = (lastClose - position.entry) / position.entry;
-      const pnl = (position.type === "long" ? change : -change) * position.size * position.lev;
-
+      const pnl = (position.type === 'long' ? change : -change) * position.size * position.lev;
       balance += pnl;
       realized += pnl;
-
+      // update UI
       balanceDisplay.textContent = "$" + balance.toFixed(2);
       realizedDisplay.textContent = "$" + realized.toFixed(2);
-
+      posTypeEl.textContent = 'None';
+      posSizeEl.textContent = '0';
+      posEntryEl.textContent = '-';
+      unrealEl.textContent = '0';
+      // GA event with pnl
+      gtag('event', 'close_position', { 'method': 'sim', 'pnl': Number(pnl.toFixed(2)), 'position_type': position.type });
       position = null;
-      posTypeEl.textContent = "None";
-      posSizeEl.textContent = "0";
-      posEntryEl.textContent = "-";
-      unrealEl.textContent = "0";
+      drawChart();
     }
 
     function updateUnrealized() {
-      if (!position) return unrealEl.textContent = "0";
-
+      if (!position) {
+        unrealEl.textContent = '0';
+        return;
+      }
       const change = (lastClose - position.entry) / position.entry;
-      const pnl = (position.type === "long" ? change : -change) * position.size * position.lev;
-
-      unrealEl.textContent = (pnl>=0?"+":"") + "$" + pnl.toFixed(2);
+      const pnl = (position.type === 'long' ? change : -change) * position.size * position.lev;
+      unrealEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
     }
 
-    document.getElementById("btnBuy").onclick = () => openPosition("long");
-    document.getElementById("btnSell").onclick = () => openPosition("short");
-    document.getElementById("btnClose").onclick = closePosition;
+    // Event handlers + event tracking
+    btnBuy.addEventListener('click', () => { openPosition('long'); gtag('event','buy_click',{value: Number(sizeInput.value)||0}); });
+    btnSell.addEventListener('click', () => { openPosition('short'); gtag('event','sell_click',{value: Number(sizeInput.value)||0}); });
+    btnClose.addEventListener('click', () => { closePosition(); gtag('event','close_click',{}); });
 
-    document.getElementById("btnPause").onclick = () => {
+    document.getElementById('btnPause').addEventListener('click', () => {
       running = !running;
-      document.getElementById("btnPause").textContent = running ? "Pause" : "Resume";
-    };
+      document.getElementById('btnPause').textContent = running ? 'Pause' : 'Resume';
+      gtag('event', running ? 'resume_sim' : 'pause_sim', {});
+    });
 
-    document.getElementById("btnReset").onclick = () => {
-      if (!confirm("Reset simulation?")) return;
-
+    document.getElementById('btnReset').addEventListener('click', () => {
+      if (!confirm('Reset simulation? Balance and P/L will reset.')) return;
       candles = [];
       lastClose = 100;
       balance = 1000;
       realized = 0;
-
       position = null;
-      posTypeEl.textContent = "None";
-      posSizeEl.textContent = "0";
-      posEntryEl.textContent = "-";
-      unrealEl.textContent = "0";
-
-      balanceDisplay.textContent = "$1000.00";
-      realizedDisplay.textContent = "$0.00";
-
+      balanceDisplay.textContent = "$" + balance.toFixed(2);
+      realizedDisplay.textContent = "$" + realized.toFixed(2);
+      posTypeEl.textContent = 'None';
+      posSizeEl.textContent = '0';
+      posEntryEl.textContent = '-';
+      unrealEl.textContent = '0';
       resizeCanvas();
-    };
+      gtag('event','reset_sim', {});
+    });
 
-    speedSelect.onchange = startLoop;
+    speedSelect.addEventListener('change', () => {
+      startCandleLoop();
+      gtag('event','change_speed', {'interval': Number(speedSelect.value)});
+    });
 
-    resizeCanvas();
-    startLoop();
+    // keyboard shortcuts (desktop)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'b' || e.key === 'B') { openPosition('long'); gtag('event','buy_key',{}); }
+      if (e.key === 's' || e.key === 'S') { openPosition('short'); gtag('event','sell_key',{}); }
+      if (e.key === 'c' || e.key === 'C') { closePosition(); gtag('event','close_key',{}); }
+      if (e.key === ' ') { running = !running; document.getElementById('btnPause').textContent = running ? 'Pause' : 'Resume'; gtag('event', running ? 'resume_sim' : 'pause_sim', {}); }
+    });
+
+    // seed initial candles for a nice look
+    (function seed(n = 40) {
+      for (let i=0;i<n;i++){
+        const move = (Math.random() - 0.5) * 1.2;
+        const open = lastClose;
+        const close = Math.max(0.01, open + move);
+        const high = Math.max(open, close) + Math.random() * 0.8;
+        const low = Math.min(open, close) - Math.random() * 0.8;
+        candles.push({o:open,h:high,l:low,c:close});
+        lastClose = close;
+      }
+    })();
+
+    // initialize
+    function init() {
+      resizeCanvas();
+      drawChart();
+      startCandleLoop();
+
+      // GA: mark play/session start
+      gtag('event', 'play_start', { 'page_path': location.pathname, 'page_title': document.title });
+    }
+
+    // ensure canvas resizes properly on orientation change and load
+    window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 260); });
+    window.addEventListener('load', () => { setTimeout(() => { resizeCanvas(); init(); }, 120); });
+
+    // before unload, send event (best-effort)
+    window.addEventListener('beforeunload', () => {
+      try { gtag('event', 'play_end', { 'page_path': location.pathname }); } catch(e) {}
+    });
+
+    // Expose for debugging in console (optional)
+    window.sim = { generateCandle, startCandleLoop, stop: () => { if (candleTimer) clearInterval(candleTimer); }, getState: () => ({ balance, realized, position, candlesLength: candles.length }) };
+
   </script>
 </body>
 </html>
