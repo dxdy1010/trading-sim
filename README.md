@@ -1,8 +1,4 @@
-Sure — here is a clean, professional **README.md** you can copy and paste directly into your GitHub repository (for your trading simulator game).
-
----
-
-# 📄 **README.md (copy and paste)**
+README.md
 
 ```markdown
 # 🕹️ Think & Trade – Candle Price Simulator
