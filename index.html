@@ -2,422 +2,264 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Think & Trade — Candle Price Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Think & Trade — Professional Trading Services</title>
 
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-9LRR1B15V7"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'G-9LRR1B15V7');
-  </script>
-
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    /* Prevent horizontal overflow on small screens */
-    html, body { overflow-x: hidden; }
-    body { background: linear-gradient(180deg,#f7fff7 0%, #ffffff 100%); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
-    /* container sizing */
-    .site-max { max-width: 920px; width: 100%; margin: 0 auto; }
-    /* canvas base: will be sized via JS (high-DPR aware) */
-    canvas { display:block; border-radius:8px; background:#07121b; width:100%; height:auto; touch-action: manipulation; }
-    /* ensure buttons are finger-friendly */
-    button { touch-action: manipulation; }
-    /* small adjustments for mobile spacing */
-    @media (max-width:640px) {
-      header .text-sm { font-size: 12px; }
-      .site-max { padding-left: 8px; padding-right:8px; }
+    :root {
+      --brand-green: #0f9d58;
+      --brand-dark: #081223;
+      --accent: #06b6d4;
     }
+    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .glass { backdrop-filter: blur(6px); background: rgba(255,255,255,0.75); }
+    .float-anim { animation: float 6s ease-in-out infinite; }
+    @keyframes float { 0% { transform: translateY(0);} 50% { transform: translateY(-6px);} 100% { transform: translateY(0);} }
+    .card-hover { transition: transform .18s ease, box-shadow .18s ease; }
+    .card-hover:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(2,6,23,0.08); }
+    /* make buttons finger-friendly on mobile */
+    button, a.btn { -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
 
-<body class="min-h-screen flex flex-col items-center p-4">
+<body class="antialiased text-gray-800 bg-gradient-to-b from-white via-green-50 to-white">
 
-  <!-- Header -->
-  <header class="w-full site-max flex flex-col sm:flex-row items-center sm:justify-between gap-4 mb-4">
-    <div class="flex items-center gap-4">
+  <!-- HEADER / HERO -->
+  <header class="bg-[color:var(--brand-green)] text-white py-12">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center gap-8">
+      <!-- LOGO -->
       <img src="WhatsApp Image 2025-11-20 at 02.49.45_c2297475.jpg"
-           alt="Think & Trade logo"
-           class="w-14 h-14 rounded-full object-cover shadow" />
-      <div>
-        <h1 class="text-xl sm:text-2xl font-bold">Think & Trade — Candle Price Simulator</h1>
-        <p class="text-sm text-gray-600">Practice trading in a risk-free environment.</p>
+           alt="Think & Trade Logo"
+           class="w-28 h-28 rounded-full object-cover shadow-lg border-4 border-white float-anim" />
+
+      <div class="text-center md:text-left flex-1">
+        <h1 class="text-3xl md:text-4xl font-extrabold leading-tight tracking-tight">
+          Think & Trade — Professional Trading Services
+        </h1>
+
+        <p class="mt-3 max-w-2xl opacity-95">
+          Premium mentorship, verified trading signals, and lifetime membership options to level up your trading.
+          Focused, practical, and results-oriented.
+        </p>
+
+        <div class="mt-5 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+          <a id="payMain" href="https://forms.gle/RbcvsuKGEbUvC5K19?product=Signals"
+             class="btn inline-block px-6 py-3 rounded-lg font-semibold shadow-lg bg-[color:var(--brand-dark)] text-white hover:opacity-95 transition">
+            Pay & Register
+          </a>
+
+          <a href="https://dxdy1010.github.io/trading-sim/"
+             class="inline-block px-6 py-3 rounded-lg font-semibold shadow-lg bg-white text-[color:var(--brand-green)] hover:opacity-95 transition">
+             Play Simulator
+          </a>
+        </div>
       </div>
-    </div>
-    <div class="text-sm text-gray-700">
-      <div><strong>Balance:</strong> <span id="balanceDisplay">$1000.00</span></div>
-      <div><strong>Realized P/L:</strong> <span id="realizedDisplay">$0.00</span></div>
-      <div><strong>Speed:</strong> <span id="speedLabel">1s</span></div>
+
+      <!-- small stats -->
+      <div class="hidden md:block text-sm text-white text-right">
+        <div><strong>Support:</strong> WhatsApp community</div>
+        <div><strong>Hosted:</strong> GitHub Pages</div>
+      </div>
     </div>
   </header>
 
-  <!-- Main grid -->
-  <main class="w-full site-max space-y-4">
+  <!-- MAIN -->
+  <main class="max-w-6xl mx-auto px-6 -mt-10 pb-16">
 
-    <!-- Chart Section -->
-    <section class="bg-white p-4 rounded-lg shadow">
-      <div class="flex items-center justify-between mb-3">
-        <div class="text-sm text-gray-600">Simulated Market</div>
-        <div class="text-sm text-gray-600">Current Price: <span id="currentPrice">--</span></div>
-      </div>
-
-      <div class="w-full overflow-hidden">
-        <canvas id="chart" aria-label="Price chart"></canvas>
-      </div>
-
-      <div class="mt-4 flex flex-wrap gap-3">
-        <button id="btnPause" class="px-4 py-2 rounded bg-yellow-400 font-semibold">Pause</button>
-        <button id="btnReset" class="px-4 py-2 rounded bg-gray-200">Reset</button>
-
-        <label class="text-sm ml-2">Candle interval:</label>
-        <select id="speed" class="px-2 py-1 border rounded">
-          <option value="1000">1s</option>
-          <option value="700">0.7s</option>
-          <option value="400">0.4s</option>
-          <option value="200">0.2s</option>
-          <option value="50">0.05s (fast)</option>
-        </select>
-      </div>
-    </section>
-
-    <!-- Controls -->
-    <section class="bg-white p-4 rounded-lg shadow">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-        <div>
-          <label class="block text-sm">Position Size ($):</label>
-          <input id="size" type="number" value="100" min="1" class="w-full mt-1 px-3 py-2 border rounded" />
+    <!-- WhatsApp CTA (prominent section per your choice C) -->
+    <section class="mt-6 p-6 bg-white rounded-2xl shadow flex flex-col md:flex-row items-center gap-6">
+      <div class="flex items-center gap-4">
+        <!-- WhatsApp icon inline SVG for reliability -->
+        <div class="w-14 h-14 flex items-center justify-center rounded-full bg-[color:var(--brand-green)]">
+          <svg viewBox="0 0 24 24" class="w-8 h-8 text-white" fill="currentColor" aria-hidden="true">
+            <path d="M20.52 3.48A11.86 11.86 0 0012 .5 11.86 11.86 0 003.48 3.48 11.86 11.86 0 00.5 12c0 2.03.53 4.14 1.6 6.11L.03 23.5l5.44-1.43A11.86 11.86 0 0012 23.5c6.57 0 11.9-5.33 11.9-11.9 0-3.18-1.24-6.15-3.38-8.12zM12 21.5c-1.57 0-3.1-.42-4.45-1.22l-.32-.19-3.23.85.86-3.15-.21-.34A9.4 9.4 0 012.5 12 9.5 9.5 0 1112 21.5z"/>
+            <path d="M17.4 14.2c-.3-.15-1.77-.88-2.04-.98-.27-.1-.47-.15-.67.15-.2.3-.77.98-.94 1.18-.17.2-.34.22-.64.07-.3-.15-1.27-.47-2.42-1.49-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.12.3-.32.45-.48.15-.15.2-.25.3-.42.1-.17.05-.32-.02-.47-.07-.15-.67-1.62-.92-2.22-.24-.58-.48-.5-.66-.51l-.55-.01c-.17 0-.45.06-.69.32-.24.27-.94.92-.94 2.25 0 1.33.96 2.62 1.09 2.8.13.17 1.89 2.9 4.58 4.03 1.63.7 2.34.91 3.17 1.02.6.08 1.16.06 1.6.04.49-.03 1.5-.61 1.71-1.2.21-.6.21-1.12.15-1.22-.06-.1-.24-.15-.54-.3z"/>
+          </svg>
         </div>
-
         <div>
-          <label class="block text-sm">Leverage (x):</label>
-          <input id="leverage" type="number" value="1" min="1" class="w-full mt-1 px-3 py-2 border rounded" />
+          <h3 class="text-lg font-bold text-[color:var(--brand-dark)]">Join Our WhatsApp Community</h3>
+          <p class="text-sm text-gray-600">Get live support, charts, and community updates.</p>
         </div>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-3 mt-4">
-        <button id="btnBuy" class="flex-1 px-4 py-2 rounded bg-green-600 text-white font-bold">Buy / Long</button>
-        <button id="btnSell" class="flex-1 px-4 py-2 rounded bg-red-600 text-white font-bold">Sell / Short</button>
-      </div>
-
-      <button id="btnClose" class="w-full px-4 py-2 mt-3 rounded bg-indigo-600 text-white font-bold">
-        Close Position
-      </button>
-
-      <div class="pt-4 border-t mt-4">
-        <div class="text-sm text-gray-600 mb-2">Position</div>
-        <div><strong>Type:</strong> <span id="posType">None</span></div>
-        <div><strong>Size ($):</strong> <span id="posSize">0</span></div>
-        <div><strong>Entry Price:</strong> <span id="posEntry">-</span></div>
-        <div><strong>Unrealized P/L:</strong> <span id="unreal">0</span></div>
+      <div class="ml-auto">
+        <a id="waJoin" href="https://chat.whatsapp.com/INuWgPMBCHnA8rzAiln3PN"
+           class="inline-block px-5 py-3 rounded-lg bg-[color:var(--brand-green)] text-white font-semibold shadow hover:opacity-95 transition">
+           Join WhatsApp Group
+        </a>
       </div>
     </section>
 
-    <!-- Promo / Poster (link to uploaded poster file in your repo) -->
-    <section class="text-center">
-      <a href="ChatGPT Image Nov 20, 2025, 06_24_59 AM.png" target="_blank" rel="noopener" class="inline-block px-4 py-2 bg-slate-800 text-white rounded shadow">
-        View Promotional Poster
-      </a>
+    <!-- SERVICES / PRICING -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-[color:var(--brand-dark)]">Services & Pricing</h2>
+      <p class="mt-2 text-gray-600 max-w-3xl">Premium trading products to accelerate your trading skill and performance. Click any card to pay & register.</p>
+
+      <div class="mt-6 grid gap-6 md:grid-cols-3">
+
+        <!-- SIGNALS -->
+        <a id="paySignals" href="https://forms.gle/RbcvsuKGEbUvC5K19?product=Signals" class="block p-6 bg-white rounded-2xl shadow card-hover">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-bold text-lg text-[color:var(--brand-green)]">Signals</h3>
+              <p class="mt-2 text-sm text-gray-600 max-w-xs">
+                Monthly subscription. Receive curated trade setups with clear entry, stop-loss and take-profit levels. Perfect for traders who want professional trade ideas and proven setups — traded responsibly and with clear risk guidance.
+              </p>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-extrabold">$600</div>
+              <div class="text-xs text-gray-500">per month</div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <div class="text-xs text-gray-500">Support via WhatsApp • Strategy notes</div>
+            <div>
+              <span class="inline-block px-3 py-1 text-sm bg-[color:var(--brand-green)] text-white rounded-lg font-semibold">Subscribe</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- 3-MONTH MENTORSHIP -->
+        <a id="payMentor" href="https://forms.gle/RbcvsuKGEbUvC5K19?product=3-Month%20Mentorship" class="block p-6 bg-white rounded-2xl shadow card-hover border-2 border-[color:var(--accent)]">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-bold text-lg text-[color:var(--brand-dark)]">3-Month Mentorship</h3>
+              <p class="mt-2 text-sm text-gray-600 max-w-xs">
+                Intensive, hands-on mentorship designed to transform your trading in 12 weeks. Includes structured weekly lessons, live trade reviews, personalized feedback, a tailored trading plan, and performance analytics. We focus on skill transfer — strategy, psychology, risk management, and trade execution.
+              </p>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-extrabold">$1,200</div>
+              <div class="text-xs text-gray-500">one-time</div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <div class="text-xs text-gray-500">Live sessions • Personalized plan</div>
+            <div>
+              <span class="inline-block px-3 py-1 text-sm bg-[color:var(--accent)] text-white rounded-lg font-semibold">Enroll</span>
+            </div>
+          </div>
+        </a>
+
+        <!-- LIFETIME -->
+        <a id="payLifetime" href="https://forms.gle/RbcvsuKGEbUvC5K19?product=Lifetime%20Membership" class="block p-6 bg-white rounded-2xl shadow card-hover">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-bold text-lg text-[color:var(--brand-dark)]">Lifetime Membership</h3>
+              <p class="mt-2 text-sm text-gray-600 max-w-xs">
+                Full lifetime access to all courses, tools, live updates, and community. Continuous mentorship support, priority access to new programs, performance audits, and exclusive content. Best choice for traders committed to long-term growth.
+              </p>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-extrabold">$2,400</div>
+              <div class="text-xs text-gray-500">one-time</div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <div class="text-xs text-gray-500">Lifetime access • Priority support</div>
+            <div>
+              <span class="inline-block px-3 py-1 text-sm bg-[color:var(--brand-green)] text-white rounded-lg font-semibold">Get Access</span>
+            </div>
+          </div>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- TESTIMONIALS -->
+    <section class="mt-10">
+      <h2 class="text-2xl font-bold text-[color:var(--brand-dark)]">What Clients Say</h2>
+      <div class="mt-6 grid md:grid-cols-3 gap-4">
+        <article class="bg-white p-6 rounded-xl shadow">
+          <p class="italic">“The mentorship changed how I approach risk and my win rate improved significantly.”</p>
+          <p class="mt-3 font-bold">— David</p>
+        </article>
+
+        <article class="bg-white p-6 rounded-xl shadow">
+          <p class="italic">“Signals are clear and easy to follow. They helped me regain confidence.”</p>
+          <p class="mt-3 font-bold">— Amara</p>
+        </article>
+
+        <article class="bg-white p-6 rounded-xl shadow">
+          <p class="italic">“Lifetime membership is worth the price — continuous updates and great support.”</p>
+          <p class="mt-3 font-bold">— Tunde</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="mt-10 p-6 bg-[color:var(--brand-green)] text-white rounded-2xl shadow">
+      <h3 class="text-xl font-bold">FAQ</h3>
+      <div class="mt-4 space-y-3">
+        <details class="bg-white/10 p-3 rounded">
+          <summary class="font-semibold">How do payments work?</summary>
+          <div class="mt-2 text-sm">Click the pay button on a plan. You will be taken to the payment registration form where you upload proof of payment. We verify and grant access within 24 hours.</div>
+        </details>
+
+        <details class="bg-white/10 p-3 rounded">
+          <summary class="font-semibold">Is Signals a daily service?</summary>
+          <div class="mt-2 text-sm">Signals are issued as trade ideas during active market windows; this is a monthly subscription service. We prioritize quality setups over quantity.</div>
+        </details>
+
+        <details class="bg-white/10 p-3 rounded">
+          <summary class="font-semibold">What does mentorship include?</summary>
+          <div class="mt-2 text-sm">Structured lessons, live trade reviews, personalized feedback, a trading plan, and performance reports. The 3-month program includes live calls and hands-on mentoring.</div>
+        </details>
+      </div>
     </section>
 
   </main>
 
-  <!-- Footer -->
-  <footer class="mt-4 text-sm text-gray-600 site-max text-center">
-    Mobile-optimized trading simulator — practice anywhere.
+  <!-- FOOTER -->
+  <footer class="mt-12 py-8 text-center text-sm text-gray-600">
+    © 2025 Think & Trade • Hosted on GitHub Pages • <a href="https://dxdy1010.github.io/trading-sim/" class="text-[color:var(--brand-green)] hover:underline">Play Simulator</a>
   </footer>
 
-  <!-- SCRIPT -->
+  <!-- SCRIPTS -->
   <script>
-    // Elements
-    const canvas = document.getElementById('chart');
-    const ctx = canvas.getContext('2d');
+    // Payment base form
+    const PAYMENT_FORM = "https://forms.gle/RbcvsuKGEbUvC5K19";
 
-    const currentPriceEl = document.getElementById('currentPrice');
-    const balanceDisplay = document.getElementById('balanceDisplay');
-    const realizedDisplay = document.getElementById('realizedDisplay');
-    const posTypeEl = document.getElementById('posType');
-    const posSizeEl = document.getElementById('posSize');
-    const posEntryEl = document.getElementById('posEntry');
-    const unrealEl = document.getElementById('unreal');
-    const sizeInput = document.getElementById('size');
-    const levInput = document.getElementById('leverage');
-    const speedSelect = document.getElementById('speed');
-    const speedLabel = document.getElementById('speedLabel');
-    const btnBuy = document.getElementById('btnBuy');
-    const btnSell = document.getElementById('btnSell');
-    const btnClose = document.getElementById('btnClose');
+    // Update pay links (we already included product param in href as fallback).
+    // Ensure links open in same tab on mobile, new tab on desktop.
+    function setLinkTargets() {
+      const isDesktop = window.innerWidth > 768;
+      const payLinks = document.querySelectorAll('a[href^="' + PAYMENT_FORM + '"]');
+      payLinks.forEach(a => {
+        if (isDesktop) {
+          a.target = "_blank";
+          a.rel = "noopener";
+        } else {
+          a.target = "_self";
+          a.rel = "";
+        }
+      });
 
-    // State
-    let candles = [];
-    let maxCandles = 80;
-    let lastClose = 100;
-    let balance = 1000;
-    let realized = 0;
-    let position = null;
-    let running = true;
-
-    // Candle generation timing
-    let candleInterval = 1000;
-    let candleTimer = null;
-
-    // High-DPI canvas setup & resize
-    function resizeCanvas() {
-      const parentWidth = canvas.parentElement.clientWidth;
-      const targetHeight = Math.min(360, Math.round(window.innerHeight * 0.45)); // responsive height
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-      // set CSS sizes (for layout)
-      canvas.style.width = parentWidth + 'px';
-      canvas.style.height = targetHeight + 'px';
-
-      // set actual canvas pixel size for crisp rendering
-      canvas.width = Math.round(parentWidth * dpr);
-      canvas.height = Math.round(targetHeight * dpr);
-
-      // reset transform and scale for DPR
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
-
-      drawChart();
-    }
-
-    // draw chart using candles array
-    function drawChart() {
-      // draw background
-      const cssWidth = canvas.clientWidth;
-      const cssHeight = canvas.clientHeight;
-      ctx.clearRect(0,0, cssWidth, cssHeight);
-      ctx.fillStyle = "#07121b";
-      ctx.fillRect(0,0, cssWidth, cssHeight);
-
-      if (candles.length === 0) {
-        // show placeholder center
-        ctx.fillStyle = "#9aa8b3";
-        ctx.font = "14px sans-serif";
-        ctx.fillText("Waiting for market...", 12, 28);
-        return;
+      const wa = document.getElementById('waJoin');
+      if (wa) {
+        if (isDesktop) { wa.target = "_blank"; wa.rel = "noopener"; }
+        else { wa.target = "_self"; wa.rel = ""; }
       }
 
-      // compute scale
-      const visible = Math.min(maxCandles, candles.length);
-      const w = cssWidth;
-      const h = cssHeight;
-      const candleW = Math.max(2, w / visible * 0.95);
-
-      const prices = candles.slice(-visible).flatMap(c => [c.h, c.l, c.o, c.c]);
-      const maxP = Math.max(...prices, lastClose);
-      const minP = Math.min(...prices, lastClose);
-      const range = Math.max(0.0001, maxP - minP);
-
-      const scaleY = p => h - 10 - ((p - minP) / range) * (h - 20);
-
-      // draw candles left-to-right
-      const startX = Math.max(0, w - visible * candleW);
-      for (let i = 0; i < visible; i++) {
-        const c = candles[candles.length - visible + i];
-        const x = startX + i * candleW;
-        const yOpen = scaleY(c.o);
-        const yClose = scaleY(c.c);
-        const yHigh = scaleY(c.h);
-        const yLow = scaleY(c.l);
-
-        // wick
-        ctx.strokeStyle = "#cbd5e1";
-        ctx.lineWidth = Math.max(1, candleW * 0.08);
-        ctx.beginPath();
-        ctx.moveTo(x + candleW/2, yHigh);
-        ctx.lineTo(x + candleW/2, yLow);
-        ctx.stroke();
-
-        // body
-        const isBull = c.c >= c.o;
-        ctx.fillStyle = isBull ? "#10b981" : "#ef4444";
-        const bodyTop = Math.min(yOpen, yClose);
-        const bodyHeight = Math.max(1, Math.abs(yClose - yOpen));
-        ctx.fillRect(x + 1, bodyTop, Math.max(1, candleW - 2), bodyHeight);
-      }
-
-      // draw price & stats
-      ctx.fillStyle = "#e6eef3";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("High: " + Math.max(...prices).toFixed(2), 10, 14);
-      ctx.fillText("Low: " + Math.min(...prices).toFixed(2), 10, 30);
-      ctx.fillText("Candles: " + candles.length, 10, 46);
-
-      // draw current price marker right side
-      ctx.fillStyle = "#fff";
-      ctx.font = "13px sans-serif";
-      ctx.fillText("Price: " + lastClose.toFixed(2), w - 130, 20);
-
-      // draw position line
-      if (position) {
-        const py = scaleY(position.entry);
-        ctx.strokeStyle = position.type === 'long' ? 'rgba(16,185,129,0.6)' : 'rgba(239,68,68,0.6)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, py);
-        ctx.lineTo(w, py);
-        ctx.stroke();
+      // main pay button
+      const payMain = document.getElementById('payMain');
+      if (payMain) {
+        if (isDesktop) { payMain.target = "_blank"; payMain.rel = "noopener"; }
+        else { payMain.target = "_self"; payMain.rel = ""; }
       }
     }
 
-    // generate one candle (random walk)
-    function generateCandle() {
-      const vol = (Math.random() - 0.5) * 1.4;
-      const open = lastClose;
-      const close = Math.max(0.01, open + vol);
-      const high = Math.max(open, close) + Math.random() * 0.8;
-      const low = Math.min(open, close) - Math.random() * 0.8;
-      const candle = { o: open, h: high, l: low, c: close };
-      candles.push(candle);
-      if (candles.length > 1000) candles.shift();
-      lastClose = close;
-      currentPriceEl.textContent = lastClose.toFixed(2);
-      // update visuals & P/L
-      drawChart();
-      updateUnrealized();
-    }
-
-    // Start candle generation loop (uses setInterval for timing)
-    function startCandleLoop() {
-      if (candleTimer) clearInterval(candleTimer);
-      candleInterval = Number(speedSelect.value) || 1000;
-      speedLabel.textContent = candleInterval >= 1000 ? (candleInterval/1000) + "s" : candleInterval + "ms";
-      candleTimer = setInterval(() => {
-        if (running) generateCandle();
-      }, candleInterval);
-    }
-
-    // Trading logic
-    function openPosition(type) {
-      if (position) {
-        alert('Please close your existing position first.');
-        return;
-      }
-      const size = Math.max(1, Number(sizeInput.value) || 1);
-      const lev = Math.max(1, Number(levInput.value) || 1);
-      position = { type, size, lev, entry: lastClose };
-      posTypeEl.textContent = type;
-      posSizeEl.textContent = "$" + size.toFixed(2);
-      posEntryEl.textContent = position.entry.toFixed(2);
-      updateUnrealized();
-      // GA event
-      gtag('event', 'open_position', { 'method': 'sim', 'position_type': type, 'size': size, 'leverage': lev });
-    }
-
-    function closePosition() {
-      if (!position) {
-        alert('No open position.');
-        return;
-      }
-      const change = (lastClose - position.entry) / position.entry;
-      const pnl = (position.type === 'long' ? change : -change) * position.size * position.lev;
-      balance += pnl;
-      realized += pnl;
-      // update UI
-      balanceDisplay.textContent = "$" + balance.toFixed(2);
-      realizedDisplay.textContent = "$" + realized.toFixed(2);
-      posTypeEl.textContent = 'None';
-      posSizeEl.textContent = '0';
-      posEntryEl.textContent = '-';
-      unrealEl.textContent = '0';
-      // GA event with pnl
-      gtag('event', 'close_position', { 'method': 'sim', 'pnl': Number(pnl.toFixed(2)), 'position_type': position.type });
-      position = null;
-      drawChart();
-    }
-
-    function updateUnrealized() {
-      if (!position) {
-        unrealEl.textContent = '0';
-        return;
-      }
-      const change = (lastClose - position.entry) / position.entry;
-      const pnl = (position.type === 'long' ? change : -change) * position.size * position.lev;
-      unrealEl.textContent = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
-    }
-
-    // Event handlers + event tracking
-    btnBuy.addEventListener('click', () => { openPosition('long'); gtag('event','buy_click',{value: Number(sizeInput.value)||0}); });
-    btnSell.addEventListener('click', () => { openPosition('short'); gtag('event','sell_click',{value: Number(sizeInput.value)||0}); });
-    btnClose.addEventListener('click', () => { closePosition(); gtag('event','close_click',{}); });
-
-    document.getElementById('btnPause').addEventListener('click', () => {
-      running = !running;
-      document.getElementById('btnPause').textContent = running ? 'Pause' : 'Resume';
-      gtag('event', running ? 'resume_sim' : 'pause_sim', {});
-    });
-
-    document.getElementById('btnReset').addEventListener('click', () => {
-      if (!confirm('Reset simulation? Balance and P/L will reset.')) return;
-      candles = [];
-      lastClose = 100;
-      balance = 1000;
-      realized = 0;
-      position = null;
-      balanceDisplay.textContent = "$" + balance.toFixed(2);
-      realizedDisplay.textContent = "$" + realized.toFixed(2);
-      posTypeEl.textContent = 'None';
-      posSizeEl.textContent = '0';
-      posEntryEl.textContent = '-';
-      unrealEl.textContent = '0';
-      resizeCanvas();
-      gtag('event','reset_sim', {});
-    });
-
-    speedSelect.addEventListener('change', () => {
-      startCandleLoop();
-      gtag('event','change_speed', {'interval': Number(speedSelect.value)});
-    });
-
-    // keyboard shortcuts (desktop)
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'b' || e.key === 'B') { openPosition('long'); gtag('event','buy_key',{}); }
-      if (e.key === 's' || e.key === 'S') { openPosition('short'); gtag('event','sell_key',{}); }
-      if (e.key === 'c' || e.key === 'C') { closePosition(); gtag('event','close_key',{}); }
-      if (e.key === ' ') { running = !running; document.getElementById('btnPause').textContent = running ? 'Pause' : 'Resume'; gtag('event', running ? 'resume_sim' : 'pause_sim', {}); }
-    });
-
-    // seed initial candles for a nice look
-    (function seed(n = 40) {
-      for (let i=0;i<n;i++){
-        const move = (Math.random() - 0.5) * 1.2;
-        const open = lastClose;
-        const close = Math.max(0.01, open + move);
-        const high = Math.max(open, close) + Math.random() * 0.8;
-        const low = Math.min(open, close) - Math.random() * 0.8;
-        candles.push({o:open,h:high,l:low,c:close});
-        lastClose = close;
-      }
-    })();
-
-    // initialize
-    function init() {
-      resizeCanvas();
-      drawChart();
-      startCandleLoop();
-
-      // GA: mark play/session start
-      gtag('event', 'play_start', { 'page_path': location.pathname, 'page_title': document.title });
-    }
-
-    // ensure canvas resizes properly on orientation change and load
-    window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 260); });
-    window.addEventListener('load', () => { setTimeout(() => { resizeCanvas(); init(); }, 120); });
-
-    // before unload, send event (best-effort)
-    window.addEventListener('beforeunload', () => {
-      try { gtag('event', 'play_end', { 'page_path': location.pathname }); } catch(e) {}
-    });
-
-    // Expose for debugging in console (optional)
-    window.sim = { generateCandle, startCandleLoop, stop: () => { if (candleTimer) clearInterval(candleTimer); }, getState: () => ({ balance, realized, position, candlesLength: candles.length }) };
-
+    // call once & on resize/orientation change
+    setLinkTargets();
+    window.addEventListener('resize', setLinkTargets);
+    window.addEventListener('orientationchange', () => setTimeout(setLinkTargets, 120));
   </script>
+
 </body>
 </html>
